@@ -1,0 +1,5 @@
+Para mandar foto para a nuvem
+
+git add .
+git commit -m "foto nova"
+git push

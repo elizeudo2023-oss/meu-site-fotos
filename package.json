@@ -1,10 +1,9 @@
 {
   "name": "meu-site-fotos",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Site para automacao Instagram com pastas uploads visiveis",
+  "main": "server.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1",
     "start": "node server.js"
   },
   "keywords": [],
@@ -15,8 +14,8 @@
     "axios": "^1.19.0",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
-    "express": "^5.2.1",
-    "mercadopago": "^3.4.0",
-    "nodemailer": "^9.0.5"
+    "express": "^4.18.2",
+    "mercadopago": "^2.0.0",
+    "nodemailer": "^6.9.0"
   }
 }
