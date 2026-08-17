@@ -1,0 +1,630 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elizeudo Vídeo e Foto</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        img { image-rendering: -webkit-optimize-contrast; object-fit: cover; }
+        .slide-transicao { transition: all 3s cubic-bezier(0.4, 0, 0.2, 1); }
+        @keyframes pulse-once {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.3); }
+            100% { transform: scale(1); }
+        }
+        .animar-contador { animation: pulse-once 0.4s ease-in-out; }
+    </style>
+</head>
+<body class="bg-black text-white font-sans overflow-x-hidden">
+
+    <!-- Cabeçalho -->
+    <header class="relative w-full h-[400px] overflow-hidden flex items-center justify-center bg-zinc-950">
+        <div id="slide-centro" class="absolute w-[45%] md:w-[38%] h-[78%] z-30 shadow-2xl slide-transicao">
+            <img id="img-centro" src="" alt="Destaque" class="w-full h-full rounded-2xl border-2 border-white/40 shadow-2xl object-cover">
+        </div>
+    </header>
+
+    <main class="container mx-auto p-6 space-y-16">
+        <section id="portfolio-section">
+            <h2 class="text-3xl font-bold text-center mb-8">Portfólio de Eventos</h2>
+            <div id="btn-voltar-evento" class="hidden mb-6 text-center">
+                <button onclick="voltarParaEventosGeral()" class="bg-gray-700 hover:bg-gray-600 px-6 py-2 rounded-full font-bold transition">← Voltar para Eventos</button>
+            </div>
+            <div id="container-grid-eventos" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
+                <p class="col-span-full text-center text-gray-500">Carregando eventos...</p>
+            </div>
+        </section>
+
+        <section id="loja-section">
+            <h2 class="text-3xl font-bold text-center mb-8">Loja de Fotos Exclusivas</h2>
+            <div id="btn-voltar-loja" class="hidden mb-6 text-center">
+                <button onclick="voltarParaLojaGeral()" class="bg-gray-700 hover:bg-gray-600 px-6 py-2 rounded-full font-bold transition">← Voltar para Pastas da Loja</button>
+            </div>
+            <div id="container-grid-loja" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-6">
+                <p class="col-span-full text-center text-gray-500">Carregando pastas da loja...</p>
+            </div>
+        </section>
+    </main>
+
+    <!-- Modal Ampliar Foto -->
+    <div id="modal-foto" class="fixed inset-0 bg-black/95 hidden z-50 flex items-center justify-center p-4">
+        <button onclick="fecharModalFoto()" class="absolute top-5 right-5 text-4xl text-gray-400 hover:text-white z-50">×</button>
+        <button onclick="mudarFotoModal(-1)" class="absolute left-5 text-4xl bg-black/50 hover:bg-black p-3 rounded-full text-white z-50 hidden md:block">‹</button>
+        
+        <div class="max-w-4xl w-full text-center relative flex flex-col items-center">
+            <div id="container-imagem-modal" class="relative inline-block overflow-hidden rounded shadow-2xl touch-pan-y">
+                <!-- Conteúdo da imagem injetado via JS -->
+            </div>
+            
+            <div id="area-botoes-modal" class="mt-6 flex flex-col items-center gap-4 relative w-full">
+                <!-- Conteúdo injetado via JS -->
+            </div>
+        </div>
+
+        <button onclick="mudarFotoModal(1)" class="absolute right-5 text-4xl bg-black/50 hover:bg-black p-3 rounded-full text-white z-50 hidden md:block">›</button>
+    </div>
+
+    <!-- Modal Resumo do Carrinho -->
+    <div id="modal-carrinho" class="fixed inset-0 bg-black/90 hidden z-50 flex items-center justify-center p-4">
+        <div class="bg-zinc-900 border border-zinc-700 max-w-lg w-full p-6 rounded-2xl relative shadow-2xl">
+            <button onclick="fecharCarrinho()" class="absolute top-4 right-4 text-2xl text-gray-400 hover:text-white">×</button>
+            <h3 class="text-2xl font-bold mb-4 border-b border-zinc-800 pb-2 flex items-center justify-between">
+                <span>Seu Carrinho</span>
+                <span id="contador-carrinho" class="bg-purple-600 text-white font-black px-3 py-0.5 rounded-full text-sm">0</span>
+            </h3>
+            <div id="lista-carrinho" class="max-h-60 overflow-y-auto mb-4 space-y-3"></div>
+            <div class="border-t border-zinc-800 pt-4 flex justify-between items-center mb-6">
+                <span class="text-lg font-semibold">Total:</span>
+                <span id="total-carrinho" class="text-2xl font-bold text-green-400">R$ 0,00</span>
+            </div>
+            <div id="area-pagamento" class="space-y-4">
+                <button onclick="gerarPixMercadoPago()" class="w-full bg-emerald-600 hover:bg-emerald-500 py-3 rounded-xl font-bold text-lg transition shadow-lg">Finalizar Pedido via PIX</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let fotosDestaque = [], indexDestaque = 0, fotosModalAtual = [], indexFotoModal = 0, carrinho = [];
+        let pastaLojaAtualNome = null;
+        let eventoAtualNome = null;
+        let modoAtualModal = ''; 
+        let intervaloVerificacaoPix = null;
+        const PRECO_FIXO = 8.00;
+
+        let touchStartX = 0;
+        let touchEndX = 0;
+
+        function configurarEventosSwipe() {
+            const containerImg = document.getElementById('container-imagem-modal');
+            if (!containerImg) return;
+            
+            containerImg.ontouchstart = (e) => {
+                touchStartX = e.changedTouches[0].screenX;
+            };
+
+            containerImg.ontouchend = (e) => {
+                touchEndX = e.changedTouches[0].screenX;
+                tratarSwipe();
+            };
+        }
+
+        function tratarSwipe() {
+            const limiteDeslize = 50; 
+            if (touchEndX < touchStartX - limiteDeslize) {
+                mudarFotoModal(1);
+            }
+            if (touchEndX > touchStartX + limiteDeslize) {
+                mudarFotoModal(-1);
+            }
+        }
+
+        window.addEventListener('keydown', (e) => {
+            const modalFoto = document.getElementById('modal-foto');
+            if (modalFoto && !modalFoto.classList.contains('hidden')) {
+                if (e.key === 'ArrowLeft') {
+                    mudarFotoModal(-1);
+                } else if (e.key === 'ArrowRight') {
+                    mudarFotoModal(1);
+                }
+            }
+        });
+
+        function ordenarFotosNumericamente(fotos) {
+            return fotos.sort((a, b) => {
+                const urlA = typeof a === 'string' ? a : a.url;
+                const urlB = typeof b === 'string' ? b : b.url;
+                
+                const matchA = urlA.match(/\((\d+)\)/);
+                const matchB = urlB.match(/\((\d+)\)/);
+                
+                if (matchA && matchB) {
+                    return parseInt(matchA[1]) - parseInt(matchB[1]);
+                }
+                
+                const numA = parseInt(urlA.replace(/\D/g, '')) || 0;
+                const numB = parseInt(urlB.replace(/\D/g, '')) || 0;
+                return numA - numB;
+            });
+        }
+
+        async function carregarDestaques() {
+            try {
+                const res = await fetch('/api/destaques');
+                fotosDestaque = await res.json();
+                if (fotosDestaque.length > 0) {
+                    document.getElementById('img-centro').src = fotosDestaque[indexDestaque];
+                    setInterval(() => { 
+                        indexDestaque = (indexDestaque + 1) % fotosDestaque.length; 
+                        const imgElem = document.getElementById('img-centro');
+                        if(imgElem) imgElem.src = fotosDestaque[indexDestaque]; 
+                    }, 8000);
+                }
+            } catch (e) {
+                console.error("Erro ao carregar destaques", e);
+            }
+        }
+
+        async function carregarEventos() {
+            document.getElementById('btn-voltar-evento').classList.add('hidden');
+            eventoAtualNome = null;
+            try {
+                const res = await fetch('/api/eventos');
+                const eventos = await res.json();
+                const grid = document.getElementById('container-grid-eventos');
+                
+                if (!eventos || eventos.length === 0) {
+                    grid.innerHTML = '<p class="col-span-full text-center text-gray-500">Nenhum evento encontrado.</p>';
+                    return;
+                }
+
+                grid.innerHTML = eventos.map(e => `
+                    <div onclick="abrirEvento('${encodeURIComponent(e.nome)}')" class="cursor-pointer bg-gray-800 p-8 rounded-lg text-center hover:bg-blue-900 transition border border-gray-700 flex flex-col items-center justify-center">
+                        <span class="text-4xl block mb-2">📁</span>
+                        <span class="font-bold text-sm md:text-base">${e.nome}</span>
+                    </div>
+                `).join('');
+            } catch (e) {
+                document.getElementById('container-grid-eventos').innerHTML = '<p class="col-span-full text-center text-red-500">Erro ao carregar eventos do servidor.</p>';
+            }
+        }
+
+        async function abrirEvento(nomeEncoded) {
+            eventoAtualNome = nomeEncoded;
+            document.getElementById('btn-voltar-evento').classList.remove('hidden');
+            history.pushState({ tipo: 'evento', nome: nomeEncoded }, '', `?evento=${nomeEncoded}`);
+            try {
+                const res = await fetch(`/api/eventos/${nomeEncoded}`);
+                let fotos = await res.json();
+                fotosModalAtual = ordenarFotosNumericamente(fotos);
+                
+                if (fotosModalAtual.length > 0) {
+                    abrirModalEvento(0);
+                }
+            } catch (e) {
+                console.error("Erro ao abrir evento", e);
+            }
+        }
+
+        function voltarParaEventosGeral() {
+            history.pushState({}, '', window.location.pathname);
+            carregarEventos();
+        }
+
+        function abrirModalEvento(index) {
+            modoAtualModal = 'evento';
+            indexFotoModal = index;
+            atualizarModalConteudo();
+            document.getElementById('modal-foto').classList.remove('hidden');
+            configurarEventosSwipe();
+        }
+
+        async function carregarLojaPastas() {
+            document.getElementById('btn-voltar-loja').classList.add('hidden');
+            pastaLojaAtualNome = null;
+            try {
+                const res = await fetch('/api/loja');
+                const pastas = await res.json();
+                const grid = document.getElementById('container-grid-loja');
+
+                if (!pastas || pastas.length === 0) {
+                    grid.innerHTML = '<p class="col-span-full text-center text-gray-500">Nenhuma pasta na loja.</p>';
+                    return;
+                }
+
+                grid.innerHTML = pastas.map(p => `
+                    <div onclick="abrirPastaLojaDireto('${encodeURIComponent(p.nome)}')" class="cursor-pointer bg-gray-800 p-8 rounded-lg text-center hover:bg-purple-900 transition border border-gray-700 flex flex-col items-center justify-center">
+                        <span class="text-4xl block mb-2">📁</span>
+                        <span class="font-bold text-sm md:text-base">${p.nome}</span>
+                    </div>
+                `).join('');
+            } catch (e) {
+                document.getElementById('container-grid-loja').innerHTML = '<p class="col-span-full text-center text-red-500">Erro ao carregar pastas da loja.</p>';
+            }
+        }
+
+        async function abrirPastaLojaDireto(nomePastaEncoded) {
+            pastaLojaAtualNome = nomePastaEncoded;
+            document.getElementById('btn-voltar-loja').classList.remove('hidden');
+            history.pushState({ tipo: 'loja', nome: nomePastaEncoded }, '', `?loja=${nomePastaEncoded}`);
+            try {
+                const res = await fetch(`/api/loja/${nomePastaEncoded}`);
+                let fotos = await res.json();
+                fotosModalAtual = ordenarFotosNumericamente(fotos);
+                
+                if (fotosModalAtual.length > 0) {
+                    abrirModalLoja(0);
+                }
+            } catch (e) {
+                console.error("Erro ao abrir pasta da loja", e);
+            }
+        }
+
+        function voltarParaLojaGeral() {
+            history.pushState({}, '', window.location.pathname);
+            carregarLojaPastas();
+        }
+
+        function abrirModalLoja(index) {
+            modoAtualModal = 'loja';
+            indexFotoModal = index;
+            atualizarModalConteudo();
+            document.getElementById('modal-foto').classList.remove('hidden');
+            configurarEventosSwipe();
+        }
+
+        function atualizarModalConteudo() {
+            const containerImg = document.getElementById('container-imagem-modal');
+            const areaBotoes = document.getElementById('area-botoes-modal');
+            const fotoAtual = fotosModalAtual[indexFotoModal];
+            if (!fotoAtual) return;
+            const urlFoto = typeof fotoAtual === 'string' ? fotoAtual : fotoAtual.url;
+
+            if (modoAtualModal === 'evento') {
+                containerImg.innerHTML = `<img src="${urlFoto}" class="max-h-[75vh] mx-auto rounded shadow-2xl select-none pointer-events-none">`;
+                areaBotoes.innerHTML = `
+                    <div class="absolute -top-14 bg-blue-600 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg pointer-events-none animate-bounce">
+                        Clique para baixar a foto em alta resolução
+                    </div>
+                    <button onclick="compartilharOuBaixarFoto('${urlFoto}')" class="bg-blue-600 hover:bg-blue-500 px-10 py-3 rounded-full font-bold text-lg flex items-center gap-3 shadow-lg transition hover:scale-105">
+                        <span>Baixar</span>
+                    </button>
+                `;
+            } else {
+                const jaNoCarrinho = carrinho.some(item => item.url === urlFoto);
+                const estiloBorda = jaNoCarrinho ? 'border-4 border-emerald-500 shadow-[0_0_20px_rgba(16,185,129,0.5)]' : '';
+                const seloAdicionado = jaNoCarrinho ? `
+                    <div class="absolute top-3 left-3 bg-emerald-600 text-white font-black text-xs px-3 py-1 rounded-full shadow-lg flex items-center gap-1 z-10">
+                        <span>✓ No Carrinho</span>
+                    </div>
+                ` : '';
+
+                containerImg.innerHTML = `
+                    <div class="relative inline-block rounded overflow-hidden ${estiloBorda}">
+                        ${seloAdicionado}
+                        <img src="${urlFoto}" class="max-h-[50vh] mx-auto rounded select-none pointer-events-none block">
+                    </div>
+                `;
+
+                const textoBotaoCarrinho = jaNoCarrinho ? 'Remover do Carrinho' : 'Adicionar ao Carrinho';
+                const classeBotaoCarrinho = jaNoCarrinho ? 'bg-red-700 hover:bg-red-600' : 'bg-purple-700 hover:bg-purple-600';
+                const textoToast = jaNoCarrinho ? '✓ Removida do carrinho!' : '✓ Adicionada ao carrinho!';
+
+                areaBotoes.innerHTML = `
+                    <div id="toast-aviso" class="absolute -top-12 bg-zinc-700 text-white text-xs font-bold px-4 py-2 rounded-full shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none">
+                        ${textoToast}
+                    </div>
+                    <span class="text-green-400 font-bold text-xl mb-1">R$ ${PRECO_FIXO.toFixed(2)}</span>
+                    
+                    <div class="flex flex-col sm:flex-row gap-4 w-full max-w-md justify-center items-center">
+                        <button onclick="alternarCarrinhoFotoAtual()" class="flex-1 ${classeBotaoCarrinho} px-6 py-3 rounded-full font-bold text-base flex items-center justify-center gap-2 shadow-lg transition hover:scale-105">
+                            <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>
+                            <span>${textoBotaoCarrinho}</span>
+                        </button>
+                        
+                        <div class="relative flex-1 w-full sm:w-auto">
+                            <div class="my-2 sm:my-0 sm:absolute sm:-top-11 sm:left-1/2 sm:-translate-x-1/2 bg-emerald-600 text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg pointer-events-none whitespace-nowrap animate-bounce z-20 text-center">
+                                Finalize seu pedido clicando no carrinho
+                            </div>
+                            <button onclick="abrirCarrinho()" class="w-full bg-zinc-800 hover:bg-zinc-700 border-2 border-emerald-500 px-6 py-3 rounded-full font-bold text-base flex items-center justify-center gap-2 shadow-lg transition hover:scale-105">
+                                <svg class="w-6 h-6 fill-emerald-400" viewBox="0 0 24 24"><path d="M7 18c-1.1 0-1.99.9-1.99 2S5.9 22 7 22s2-.9 2-2-.9-2-2-2zM1 2v2h2l3.6 7.59-1.35 2.45c-.16.28-.25.61-.25.96 0 1.1.9 2 2 2h12v-2H7.42c-.14 0-.25-.11-.25-.25l.03-.12.9-1.63h7.45c.75 0 1.41-.41 1.75-1.03l3.58-6.49c.08-.14.12-.31.12-.48 0-.55-.45-1-1-1H5.21l-.94-2H1zm16 16c-1.1 0-1.99.9-1.99 2s.89 2 1.99 2 2-.9 2-2-.9-2-2-2z"/></svg>
+                                <span>Carrinho</span>
+                                <span id="contador-modal" class="bg-emerald-500 text-black font-black px-2 py-0.5 rounded-full text-xs">0</span>
+                            </button>
+                        </div>
+                    </div>
+                `;
+                atualizarContadorCarrinho();
+            }
+            configurarEventosSwipe();
+        }
+
+        async function compartilharOuBaixarFoto(url) {
+            const ehMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+            if (ehMobile && navigator.share) {
+                try {
+                    const response = await fetch(url);
+                    const blob = await response.blob();
+                    const file = new File([blob], "foto_evento.jpg", { type: blob.type });
+                    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+                        await navigator.share({ files: [file], title: 'Foto do Evento', text: 'Confira esta foto!' });
+                        return;
+                    }
+                } catch (error) {
+                    if (error.name === 'AbortError') return;
+                }
+            }
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'foto_evento.jpg';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+        }
+
+        function mudarFotoModal(direcao) {
+            if (fotosModalAtual.length <= 1) return;
+            indexFotoModal = (indexFotoModal + direcao + fotosModalAtual.length) % fotosModalAtual.length;
+            atualizarModalConteudo();
+        }
+
+        function fecharModalFoto() { 
+            document.getElementById('modal-foto').classList.add('hidden'); 
+        }
+        
+        function alternarCarrinhoFotoAtual() {
+            const foto = fotosModalAtual[indexFotoModal];
+            const urlPreview = typeof foto === 'string' ? foto : foto.url;
+            const caminhoOriginal = typeof foto === 'string' ? foto : foto.caminhoOriginal;
+            
+            const indexExistente = carrinho.findIndex(item => item.url === urlPreview);
+            
+            if (indexExistente > -1) {
+                carrinho.splice(indexExistente, 1);
+            } else {
+                carrinho.push({ url: urlPreview, caminhoOriginal: caminhoOriginal, preco: PRECO_FIXO });
+            }
+            
+            atualizarContadorCarrinho();
+            atualizarModalConteudo();
+            
+            const toast = document.getElementById('toast-aviso');
+            if (toast) {
+                toast.style.opacity = '1';
+                setTimeout(() => { toast.style.opacity = '0'; }, 2000);
+            }
+        }
+
+        function atualizarContadorCarrinho() {
+            const contadorTopo = document.getElementById('contador-carrinho');
+            const contadorModal = document.getElementById('contador-modal');
+            
+            if (contadorTopo) {
+                contadorTopo.innerText = carrinho.length;
+                contadorTopo.classList.add('animar-contador');
+                setTimeout(() => contadorTopo.classList.remove('animar-contador'), 400);
+            }
+            if (contadorModal) {
+                contadorModal.innerText = carrinho.length;
+            }
+        }
+
+        function abrirCarrinho() {
+            const lista = document.getElementById('lista-carrinho');
+            let total = 0;
+            if (carrinho.length === 0) {
+                lista.innerHTML = '<p class="text-center text-gray-400 py-4">Seu carrinho está vazio.</p>';
+            } else {
+                lista.innerHTML = carrinho.map((item, idx) => {
+                    total += item.preco;
+                    return `
+                        <div class="flex justify-between items-center bg-zinc-800 p-3 rounded-xl">
+                            <div class="flex items-center gap-3">
+                                <img src="${item.url}" class="w-12 h-12 object-cover rounded">
+                                <span class="font-medium">Foto #${idx + 1}</span>
+                            </div>
+                            <button onclick="removerDoCarrinho(event, ${idx})" class="p-2 bg-red-500/10 hover:bg-red-500/20 rounded-lg text-red-500 transition flex items-center justify-center" title="Excluir foto">
+                                <svg class="w-5 h-5 fill-current" viewBox="0 0 24 24">
+                                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                                </svg>
+                            </button>
+                        </div>
+                    `;
+                }).join('');
+            }
+            document.getElementById('total-carrinho').innerText = `R$ ${total.toFixed(2)}`;
+            document.getElementById('area-pagamento').innerHTML = `
+                <button onclick="gerarPixMercadoPago()" class="w-full bg-emerald-600 hover:bg-emerald-500 py-3 rounded-xl font-bold text-lg transition shadow-lg">Finalizar Pedido via PIX</button>
+            `;
+            document.getElementById('modal-carrinho').classList.remove('hidden');
+        }
+
+        function removerDoCarrinho(event, idx) {
+            event.stopPropagation();
+            carrinho.splice(idx, 1);
+            atualizarContadorCarrinho();
+            abrirCarrinho();
+            if (!document.getElementById('modal-foto').classList.contains('hidden')) {
+                atualizarModalConteudo();
+            }
+        }
+
+        function fecharCarrinho() { 
+            if (intervaloVerificacaoPix) clearInterval(intervaloVerificacaoPix);
+            document.getElementById('modal-carrinho').classList.add('hidden'); 
+        }
+        
+        async function gerarPixMercadoPago() {
+            if (carrinho.length === 0) return;
+            const total = carrinho.reduce((acc, item) => acc + item.preco, 0);
+
+            if (intervaloVerificacaoPix) clearInterval(intervaloVerificacaoPix);
+
+            document.getElementById('area-pagamento').innerHTML = `
+                <div class="bg-zinc-800 p-6 rounded-xl text-center space-y-3 border border-zinc-700">
+                    <p class="text-zinc-300 font-medium animate-pulse">Gerando Pix oficial do Mercado Pago...</p>
+                </div>
+            `;
+
+            try {
+                const respostaServidor = await fetch('/api/criar-pix', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ carrinho })
+                });
+
+                const dadosPix = await respostaServidor.json();
+
+                if (dadosPix.qr_code) {
+                    document.getElementById('area-pagamento').innerHTML = `
+                        <div class="bg-zinc-800 p-4 rounded-xl text-center space-y-3 border border-zinc-700">
+                            <p class="font-bold text-sm text-zinc-300">Escaneie o QR Code ou copie a chave Pix da venda:</p>
+                            
+                            <div class="bg-white p-2 rounded-lg inline-block shadow-inner">
+                                <img src="data:image/jpeg;base64,${dadosPix.qr_code_base64}" class="w-40 h-40 mx-auto object-contain">
+                            </div>
+
+                            <div class="space-y-1">
+                                <input type="text" id="pix-copia-cola" value="${dadosPix.qr_code}" readonly class="w-full bg-zinc-900 text-xs text-zinc-400 p-2 rounded border border-zinc-700 text-center select-all">
+                                <button onclick="copiarCodigoPix()" class="w-full bg-purple-600 hover:bg-purple-500 text-white py-2 rounded-lg font-bold text-xs transition">
+                                    Copiar Chave Pix da Venda
+                                </button>
+                            </div>
+
+                            <p class="text-xs text-green-400 font-semibold">Valor exato: R$ ${total.toFixed(2)}</p>
+                            
+                            <div class="bg-zinc-900 text-zinc-400 text-xs py-2 px-3 rounded-lg border border-zinc-700 flex items-center justify-center gap-2">
+                                <span class="w-2 h-2 rounded-full bg-emerald-500 animate-ping"></span>
+                                Aguardando confirmação automática do pagamento...
+                            </div>
+                        </div>
+                   `;
+
+                   iniciarVerificacaoAutomatica(dadosPix.id);
+                }
+            } catch (e) {
+                document.getElementById('area-pagamento').innerHTML = `
+                    <div class="bg-red-950 border border-red-600 p-4 rounded-xl text-center space-y-2">
+                        <p class="text-red-400 text-sm font-bold">Erro ao conectar com o servidor de pagamento.</p>
+                        <button onclick="gerarPixMercadoPago()" class="bg-zinc-700 text-white px-4 py-2 rounded text-xs font-bold">Tentar novamente</button>
+                   </div>
+               `;
+           }
+       }
+
+       function copiarCodigoPix() {
+            const inputCopiaCola = document.getElementById('pix-copia-cola');
+            inputCopiaCola.select();
+            inputCopiaCola.setSelectionRange(0, 99999);
+            navigator.clipboard.writeText(inputCopiaCola.value);
+            alert('Chave Pix Copia e Cola copiada com sucesso!');
+       }
+
+       function iniciarVerificacaoAutomatica(paymentId) {
+            if (intervaloVerificacaoPix) clearInterval(intervaloVerificacaoPix);
+
+            intervaloVerificacaoPix = setInterval(async () => {
+                try {
+                    const resposta = await fetch(`/api/verificar-pagamento/${paymentId}`);
+                    const dados = await resposta.json();
+
+                    if (dados.status === 'approved') {
+                        clearInterval(intervaloVerificacaoPix);
+                        
+                        const ehMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+
+                        let linksDownloadHtml = carrinho.map((item, idx) => {
+                            const urlRota = `/api/download-original?arquivo=${encodeURIComponent(item.caminhoOriginal)}`;
+                            
+                            if (ehMobile) {
+                                return `
+                                    <button onclick="baixarOuCompartilharMobile('${urlRota}', ${idx + 1})" class="w-full block bg-zinc-800 hover:bg-zinc-700 p-3 rounded-xl text-xs text-emerald-400 font-bold text-center border border-emerald-500/30 transition shadow">
+                                        📱 Salvar / Compartilhar Foto Original #${idx + 1} (Alta Qualidade)
+                                    </button>
+                                `;
+                            } else {
+                                return `
+                                    <a href="${urlRota}" download class="w-full block bg-zinc-800 hover:bg-zinc-700 p-3 rounded-xl text-xs text-emerald-400 font-bold text-center border border-zinc-700 transition shadow">
+                                        💻 Baixar Foto Original #${idx + 1} (Qualidade Máxima do HD)
+                                    </a>
+                                `;
+                            }
+                        }).join('');
+
+                        document.getElementById('area-pagamento').innerHTML = `
+                            <div class="bg-emerald-950 border border-emerald-600 p-4 rounded-xl text-center space-y-3">
+                                <div class="bg-emerald-600 text-white py-3 px-4 rounded-xl font-bold text-sm shadow-lg">
+                                    Pagamento Aprovado! Baixe suas fotos originais abaixo:
+                                </div>
+                                <div class="space-y-2 max-h-48 overflow-y-auto">
+                                    ${linksDownloadHtml}
+                                </div>
+                                <button onclick="concluirEVoltarPasta()" class="w-full bg-zinc-700 hover:bg-zinc-600 text-white py-2.5 rounded-lg font-bold text-xs transition">Concluir e Fechar</button>
+                            </div>
+                        `;
+                    }
+                } catch (e) {
+                    console.error("Erro na verificação automática:", e);
+                }
+            }, 4000);
+       }
+
+       async function baixarOuCompartilharMobile(url, numeroFoto) {
+            try {
+               const res = await fetch(url);
+               const blob = await res.blob();
+               const arquivo = new File([blob], `foto_original_${numeroFoto}.jpg`, { type: 'image/jpeg' });
+
+               if (navigator.canShare && navigator.canShare({ files: [arquivo] })) {
+                   await navigator.share({
+                       files: [arquivo],
+                       title: 'Foto Original',
+                       text: 'Aqui está sua foto original em alta resolução!'
+                   });
+               } else {
+                   const blobUrl = URL.createObjectURL(blob);
+                   const a = document.createElement('a');
+                   a.href = blobUrl;
+                   a.download = `foto_original_${numeroFoto}.jpg`;
+                   document.body.appendChild(a);
+                   a.click();
+                   document.body.removeChild(a);
+               }
+            } catch (e) {
+                if (e.name !== 'AbortError') {
+                    window.open(url, '_blank');
+                }
+            }
+       }
+
+       function concluirEVoltarPasta() {
+            if (intervaloVerificacaoPix) clearInterval(intervaloVerificacaoPix);
+            carrinho = []; 
+            atualizarContadorCarrinho();
+            fecharCarrinho();
+            fecharModalFoto();
+            carregarLojaPastas();
+       }
+
+       // Inicialização automática e verificação de URLs diretas na carga da página
+       async function iniciarSistema() {
+            carregarDestaques();
+            carregarEventos();
+            carregarLojaPastas();
+
+            // Verifica se o link foi aberto diretamente com parâmetro na URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const lojaParam = urlParams.get('loja');
+            const eventoParam = urlParams.get('evento');
+
+            if (lojaParam) {
+                setTimeout(() => abrirPastaLojaDireto(lojaParam), 500);
+            } else if (eventoParam) {
+                setTimeout(() => abrirEvento(eventoParam), 500);
+            }
+       }
+
+       iniciarSistema();
+    </script>
+</body>
+</html>
