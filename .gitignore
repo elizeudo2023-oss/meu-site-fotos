@@ -1,6 +1,6 @@
 node_modules
 .env
-uploads/pendente/*
 uploads/postadas/*
-!uploads/pendente/.gitkeep
 !uploads/postadas/.gitkeep
+# NAO ignora pendentes com S, para o Formiga conseguir ver as fotos no Render
+# uploads/pendentes fica liberado pro Git
